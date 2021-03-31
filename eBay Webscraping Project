@@ -1,0 +1,300 @@
+#!/usr/bin/env python
+# coding: utf-8
+
+# In[ ]:
+
+
+pip install mysql-connector-python
+
+
+# In[1]:
+
+
+import mysql.connector
+import warnings
+import requests
+import json
+import codecs
+from bs4 import BeautifulSoup
+from urllib.request import Request, urlopen
+import time
+
+#ignore warnings
+warnings.filterwarnings("ignore")
+SQL_DB = "msba"
+
+
+# In[6]:
+
+
+#Question 3
+#PART B
+url = "https://www.ebay.com/e/daily-deals/hiw-presidents-day-deals-white-sale"
+page = requests.get(url)
+# Create a beautifulsoup object 
+soup = BeautifulSoup(page.text, 'html')
+# find <p> that immediately fol"lows <div> of class "col-md-6.
+list_of_contents = soup.select('a.s-item__link')
+# prints the HTML content to the screen (almost only text here
+# just need to replaces "&nbsp;" with " ")
+
+
+file = "/Users/khristionlambert/Library/Mobile Documents/com~apple~CloudDocs/Grad School/Winter 2021/422_Data Design & Representation/Midterm/deals.txt"
+with open(file, 'w') as myFile:
+    for i in list_of_contents:
+        links = i.get('href')
+        myFile.write(links + '\n')
+        print(links + '\n')
+
+
+# In[7]:
+
+
+#Question 3
+#PART C
+import os
+import re
+import urllib.request
+file = "/Users/khristionlambert/Library/Mobile Documents/com~apple~CloudDocs/Grad School/Winter 2021/422_Data Design & Representation/Midterm/deals.txt"
+folder = "/Users/khristionlambert/Library/Mobile Documents/com~apple~CloudDocs/Grad School/Winter 2021/422_Data Design & Representation/Midterm/deals"
+#Create a new folder if it doesn't already exist
+if not os.path.exists(folder):
+    os.makedirs(folder)
+with open(file, 'r') as dealsfile:
+    for link in dealsfile:
+        link = dealsfile.readline()
+        #Performs regex to extract out the item id and transform it from a list item to str
+        item_id = str(re.findall('[1-2][0-9]{11}', link)[0])
+        #Downloads links to 'deals' folder and renames them w/each item_id 
+        urllib.request.urlretrieve(link, folder + '/' + item_id + '.html')
+        time.sleep(4)
+
+
+# In[8]:
+
+
+#PART E 
+#Creating new table 'deals'
+SQL_DB = "msba"
+def main():
+    
+    SQL_TABLE_DEALS = "deals"
+    SQL_TABLE_DEALS_DEF = "(" +             "SellerName VARCHAR (50)" +             ",SellerScore VARCHAR(50)" +             ",ListPrice INTEGER(50)" +             ",ItemPrice INTEGER(50)" +             ",ItemsSold VARCHAR(50)" +             ",Title VARCHAR(100)" +             ",Returns VARCHAR(50)" +             ",Shipping VARCHAR(50)" +             ",Conditions VARCHAR(50)" +             ")"
+    
+    SQL_TABLE_URBAN = "ip_addresses"
+    SQL_TABLE_URBAN_DEF = "(" +             "ip VARCHAR (50)" +             ",city VARCHAR(100)" +             ",zip INTEGER(50)" +             ")"
+       
+
+    create_sql_table(SQL_TABLE_DEALS, SQL_TABLE_DEALS_DEF)
+    
+    try:
+        #connect to server
+        conn = mysql.connector.connect(host='localhost',
+                                            database='msba',
+                                            user='root',
+                                            password='password')
+
+        cursor = conn.cursor()
+    
+        conn.commit()
+        cursor.close()
+        conn.close()
+    except IOError as e:
+        print(e)
+
+def create_sql_table(SQL_TABLE_DEALS, SQL_TABLE_DEALS_DEF):
+    try:
+        
+        #connect to server
+        conn = mysql.connector.connect(host='localhost',
+                                            user='root',
+                                            password='password')
+        cursor = conn.cursor()
+
+        query = "CREATE DATABASE IF NOT EXISTS " + SQL_DB
+        print(query)
+        cursor.execute(query);
+        
+        query = "CREATE TABLE IF NOT EXISTS " + SQL_DB + "." + SQL_TABLE_DEALS + " " + SQL_TABLE_DEALS_DEF + ";";
+        print(query)
+        cursor.execute(query);
+        cursor.close()
+        conn.close()
+        return
+
+    except IOError as e:
+        print(e)
+
+
+if __name__ == "__main__":
+    main()
+        
+
+
+# In[11]:
+
+
+#Question 4
+#PART D & PART E
+import glob
+conn = mysql.connector.connect(host='localhost',
+                                            database='msba',
+                                            user='root',
+                                            password='password')
+
+cursor = conn.cursor()
+#Select all of the files in the folder
+files = glob.glob(folder + '/*.html')
+for i in range(0,12):
+    my_dict = {}
+    my_dict[i] = {}
+    soup = BeautifulSoup(open(files[i]), "html.parser")
+    
+    for sellername in soup.find_all('span', {'class' : 'mbg-nw'}): #selector command for sellername
+        my_dict[i]["SellerName"]=sellername.text
+    
+    for seller_score in soup.find_all('div', {'id' : 'si-fb'}): #selector command for seller score
+        score = str(re.findall('[0-9]..[0-9]',seller_score.text)[0])
+        my_dict[i]["SellerScore"]=score
+    
+    for list_price in soup.find_all('span', {'id' : 'orgPrc'}): #selector command for list price
+        price = str(re.findall('[0-9].*',list_price.text)[0])
+        my_dict[i]["ListPrice"]=int(price.replace('.',''))
+    
+    for itemprice in soup.find_all('span', {'itemprop' : 'price'}): #selector command for sale (item) price
+        price = str(re.findall('[0-9].*',itemprice.text)[0])
+        my_dict[i]["ItemPrice"]=int(price.strip('/ea').replace('.',''))
+    
+    for items_sold in soup.find_all('span', {'class' : 'w2b-sgl'} ): #selector command for number of items sold
+        x=items_sold.text
+        xx= x.replace(',','')
+        if 'More than 61% sold' in xx:
+            pass
+        elif 'sold' in xx:
+            sold = str(re.findall('[0-9]+',xx)[0])
+            my_dict[i]["ItemsSold"]=sold
+            
+    for title in soup.find_all('h1', {'id' : 'itemTitle'}): #selector command for item Title
+        x = title.text
+        xx = x.replace('Details about  ', '')
+        xxx = xx.replace(u'\xa0', u' ')
+        my_dict[i]["Title"]=xxx
+        
+    for returns in soup.find_all('span', {'id' : 'vi-ret-accrd-txt'}): #selector command for returns info
+        if 'Free' in returns.text:
+            my_dict[i]["Returns"]="True"
+        else:
+            my_dict[i]["Returns"]="False"
+    
+    for shipping in soup.find_all('span', {'id' : 'fshippingCost'}): #selector command for Shipping Cost
+
+        my_dict[i]["Shipping"]=shipping.text.strip('\n')
+    
+    for condition in soup.find_all('div', {'itemprop' : 'itemCondition'}): #selector command for Condition of Item
+        my_dict[i]["Conditions"]=condition.text
+    print(my_dict[i])
+    print()
+    columns = ', '.join("`" + str(x).replace('/', '_') + "`" for x in my_dict[i].keys())
+    values = ', '.join("'" + str(x).replace('/', '_') + "'" for x in my_dict[i].values())
+    sql = "INSERT INTO %s ( %s ) VALUES ( %s );" % ('deals', columns, values)
+#     print(sql)
+#     print()
+    cursor.execute(sql)
+    conn.commit()
+
+
+    
+
+
+# In[10]:
+
+
+#Question 3
+#PART F
+print("NOT NULL -- The List Price is shown for the product")
+print("NULL -- The List Price is not shown for the product")
+print()
+cursor.execute('''SELECT ROUND(AVG(itemprice)) , MAX(itemprice) , MIN(itemprice) 
+               FROM deals
+               WHERE listprice > 0
+               UNION 
+               SELECT ROUND(AVG(itemprice)) , MAX(itemprice) , MIN(itemprice) 
+               FROM deals
+               WHERE listprice IS NULL''')
+result = cursor.fetchall()
+print("Average Item Price (NOT NULL):",result[0][0])
+print("MAX Item Price (NOT NULL):",result[0][1])
+print("MIN Item Price (NOT NULL):",result[0][2])
+
+print("Average Item Price (NULL):",result[1][0])
+print("MAX Item Price (NULL):",result[1][1])
+print("MIN Item Price (NULL):",result[1][2])
+print()
+
+cursor.execute('''SELECT ROUND(AVG(sellerscore)) , MAX(sellerscore), MIN(sellerscore) 
+               FROM deals
+               WHERE listprice > 0
+               UNION 
+               SELECT ROUND(AVG(sellerscore)) , MAX(sellerscore) , MIN(sellerscore)
+               FROM deals
+               WHERE listprice IS NULL''')
+result = cursor.fetchall()
+print("Average Seller Score (NOT NULL):",result[0][0])
+print("MAX Seller Score (NOT NULL):",result[0][1])
+print("MIN Seller Score (NOT NULL):",result[0][2])
+
+print("Average Seller Score (NULL):",result[1][0])
+print("MAX Seller Score (NULL):",result[1][1])
+print("MIN Seller Score (NULL):",result[1][2])
+print()
+
+cursor.execute('''SELECT ROUND(AVG(listprice)) , MAX(listprice) , MIN(listprice)
+               FROM deals
+               WHERE listprice > 0
+               UNION 
+               SELECT ROUND(AVG(listprice)) , MAX(listprice) AS MAX, MIN(listprice)
+               FROM deals
+               WHERE listprice IS NULL''')
+result = cursor.fetchall()
+print("Average List Price (NOT NULL):",result[0][0])
+print("MAX List Price (NOT NULL):",result[0][1])
+print("MIN List Price (NOT NULL):",result[0][2])
+
+print("Average List Price (NULL):",result[1][0])
+print("MAX List Price (NULL):",result[1][1])
+print("MIN List Price (NULL):",result[1][2])
+print()
+
+
+cursor.execute('''SELECT ROUND(AVG(itemssold)) , MAX(itemssold), MIN(itemssold)
+               FROM deals
+               WHERE listprice > 0
+               UNION 
+               SELECT ROUND(AVG(itemssold)) , MAX(itemssold) , MIN(itemssold) 
+               FROM deals
+               WHERE listprice IS NULL''')
+result = cursor.fetchall()
+print("Average Items Sold (NOT NULL):",result[0][0])
+print("MAX Items Sold (NOT NULL):",result[0][1])
+print("MIN Items Sold (NOT NULL):",result[0][2])
+
+print("Average Items Sold (NULL):",result[1][0])
+print("MAX Items Sold (NULL):",result[1][1])
+print("MIN Items Sold (NULL):",result[1][2])
+print()
+
+
+# In[ ]:
+
+
+#Question 3
+#PART G
+
+print("It looks like when the list price is shown there are significantly more items sold. I think this has to do with people knowing that they are getting a good deal. When you can compare the original cost vs the sale cost it tends to make people buy the products more. If the List Price is not shown, people don't have an incentive to buy unless they actually need it and/or want it")
+
+
+# In[ ]:
+
+
+
+
