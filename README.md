@@ -10,5 +10,5 @@
 * Evaluate data and determine whether original list price influences the number of items sold
 
 ## Tools
-* Python, SQL
-* BeautifulSoup, Regular Expressions
+* Python, HTML, SQL
+* Packages: BeautifulSoup, Regular Expressions
